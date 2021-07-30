@@ -21,7 +21,7 @@ impl<'l> Reader<'l> {
         }
     }
 
-    pub fn capture<F>(&mut self, block: F) -> Option<&'l str>
+    pub fn capture_with_whitespace<F>(&mut self, block: F) -> Option<&'l str>
     where
         F: Fn(&mut Reader<'l>) -> bool,
     {
@@ -29,12 +29,26 @@ impl<'l> Reader<'l> {
         if !block(self) {
             return None;
         }
-        let content = &self.content[start..self.offset].trim();
+        let content = &self.content[start..self.offset];
         if content.is_empty() {
             None
         } else {
             Some(content)
         }
+    }
+
+    pub fn capture<F>(&mut self, block: F) -> Option<&'l str>
+    where
+        F: Fn(&mut Reader<'l>) -> bool,
+    {
+        self.capture_with_whitespace(block).and_then(|content| {
+            let trimmed = content.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        })
     }
 
     #[inline]
@@ -91,18 +105,11 @@ impl<'l> Reader<'l> {
     }
 
     // https://www.w3.org/TR/REC-xml/#sec-comments
-    pub fn consume_comment(&mut self) -> bool {
+    pub fn consume_comment_start(&mut self) -> bool {
         self.consume_char('<')
             && self.consume_char('!')
             && self.consume_char('-')
             && self.consume_char('-')
-            && {
-                self.consume_comment_body();
-                true
-            }
-            && self.consume_char('-')
-            && self.consume_char('-')
-            && self.consume_char('>')
     }
 
     pub fn consume_comment_body(&mut self) -> bool {
@@ -129,6 +136,10 @@ impl<'l> Reader<'l> {
             }
         }
         consumed
+    }
+
+    pub fn consume_comment_end(&mut self) -> bool {
+        self.consume_char('-') && self.consume_char('-') && self.consume_char('>')
     }
 
     pub fn consume_declaration(&mut self) -> bool {
@@ -412,7 +423,11 @@ mod tests {
         macro_rules! test(
             ($content:expr, $value:expr) => ({
                 let mut reader = Reader::new($content);
-                let value = reader.capture(|reader| reader.consume_comment());
+                let value = reader.capture(|reader| {
+                    reader.consume_comment_start()
+                        && reader.consume_comment_body()
+                        && reader.consume_comment_end()
+                });
                 assert_eq!(value.unwrap(), $value);
             });
         );
@@ -423,7 +438,9 @@ mod tests {
         macro_rules! test(
             ($content:expr) => ({
                 let mut reader = Reader::new($content);
-                assert!(!reader.consume_comment());
+                assert!(reader.consume_comment_start());
+                assert!(reader.consume_comment_body());
+                assert!(!reader.consume_comment_end());
             });
         );
 
