@@ -1,48 +1,18 @@
 //! The parser.
 
-use crate::node::element::tag::{Tag, Type};
-use crate::node::Attributes;
+use crate::events::Event;
+use crate::node::element::tag::Tag;
+
+pub use self::error::Error;
+#[doc(hidden)]
+pub use self::reader::Reader;
 
 mod error;
 mod reader;
-mod writer;
-
-pub use self::error::Error;
-
-#[doc(hidden)]
-pub use self::reader::Reader;
 
 /// A parser.
 pub struct Parser<'l> {
     reader: Reader<'l>,
-}
-
-/// An event.
-#[derive(Debug)]
-pub enum Event<'l> {
-    /// A tag.
-    Tag(&'l str, Type, Attributes),
-    /// A text.
-    Text(&'l str),
-    /// A comment. `(content, is content padded with spaces inside comment)`
-    Comment(&'l str, bool),
-    /// A declaration.
-    Declaration(&'l str),
-    /// An instruction.
-    Instruction(&'l str),
-}
-
-impl<'l> Event<'l> {
-    fn parse_comment_body(body: &'l str) -> Self {
-        let stripped_content = body
-            .strip_prefix(" ")
-            .and_then(|content| content.strip_suffix(" "));
-        if let Some(content) = stripped_content {
-            Event::Comment(content, true)
-        } else {
-            Event::Comment(body, false)
-        }
-    }
 }
 
 /// A result.
@@ -86,12 +56,21 @@ impl<'l> Parser<'l> {
             .map(|content| Ok(Event::Text(content)))
     }
 
+    fn parse_comment_body(body: &'l str) -> Event {
+        let stripped_content = body
+            .strip_prefix(" ")
+            .and_then(|content| content.strip_suffix(" "));
+        if let Some(content) = stripped_content {
+            Event::Comment(content, true)
+        } else {
+            Event::Comment(body, false)
+        }
+    }
+
     fn read_comment(&mut self) -> Option<Result<Event<'l>>> {
         match self.reader.capture(|reader| reader.consume_comment()) {
             None => raise!(self, "found a malformed comment"),
-            Some(content) => Some(Ok(Event::parse_comment_body(
-                &content[4..content.len() - 3],
-            ))),
+            Some(content) => Some(Ok(Self::parse_comment_body(&content[4..content.len() - 3]))),
         }
     }
 
@@ -130,7 +109,8 @@ impl<'l> Iterator for Parser<'l> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::{Event, Parser};
+    use super::Parser;
+    use crate::events::Event;
 
     #[test]
     fn next_tag() {

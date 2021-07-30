@@ -1,9 +1,9 @@
 use std::io;
 use std::io::Write;
 
+use crate::events::Event;
 use crate::node::element::tag::Type;
 use crate::node::{Attributes, Value};
-use crate::parser::Event;
 
 pub struct Writer<T>
 where
@@ -116,10 +116,10 @@ where
 mod tests {
     use std::collections::HashMap;
 
+    use super::Writer;
+    use crate::events::Event;
     use crate::node::element::tag::Type;
     use crate::node::Value;
-    use crate::parser::writer::Writer;
-    use crate::parser::Event;
 
     fn events_to_string(events: &[Event]) -> String {
         let mut output = Vec::new();

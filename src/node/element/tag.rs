@@ -2,8 +2,8 @@
 
 #![allow(non_upper_case_globals)]
 
+use crate::events::parser::{Error, Reader, Result};
 use crate::node::Attributes;
-use crate::parser::{Error, Reader, Result};
 
 /// A tag.
 #[derive(Clone, Debug)]

@@ -1,8 +1,8 @@
 use std::ops::Deref;
 
 use super::{Command, Number, Parameters, Position};
+use crate::events::parser::{Error, Reader, Result};
 use crate::node::Value;
-use crate::parser::{Error, Reader, Result};
 
 /// A [data][1] attribute.
 ///

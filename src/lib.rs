@@ -37,7 +37,7 @@
 //! # extern crate svg;
 //! use svg::node::element::path::{Command, Data};
 //! use svg::node::element::tag::Path;
-//! use svg::parser::Event;
+//! use svg::events::Event;
 //!
 //! # fn main() {
 //! let path = "image.svg";
@@ -66,11 +66,11 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::Path;
 
+pub mod events;
 pub mod node;
-pub mod parser;
 
+pub use crate::events::parser::Parser;
 pub use crate::node::Node;
-pub use crate::parser::Parser;
 
 /// A document.
 pub type Document = node::element::SVG;
@@ -114,7 +114,8 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
 
-    use crate::parser::{Event, Parser};
+    use crate::events::parser::Parser;
+    use crate::events::Event;
 
     const TEST_PATH: &'static str = "tests/fixtures/benton.svg";
 
