@@ -96,24 +96,10 @@ impl<'l> Parser<'l> {
     }
 
     fn read_declaration(&mut self) -> Option<Event<'l>> {
-        if !self.reader.consume_declaration_start() {
-            raise!(self, "found a malformed declaration");
-        }
-
-        let declaration = self
-            .reader
-            .capture(|reader| reader.consume_declaration_body())
-            .map(|content| Event::Declaration(content));
-        let declaration = match declaration {
+        match self.reader.capture(|reader| reader.consume_declaration()) {
             None => raise!(self, "found a malformed declaration"),
-            Some(declaration) => declaration,
-        };
-
-        if !self.reader.consume_declaration_end() {
-            raise!(self, "found a malformed declaration");
+            Some(content) => Some(Event::Declaration(&content[2..content.len() - 1])),
         }
-
-        Some(declaration)
     }
 
     fn read_instruction(&mut self) -> Option<Event<'l>> {
