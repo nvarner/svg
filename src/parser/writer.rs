@@ -108,7 +108,6 @@ where
             Event::Comment(content, padded) => self.write_comment(content, *padded),
             Event::Declaration(content) => self.write_declaration(content),
             Event::Instruction(content) => self.write_instruction(content),
-            _ => todo!(),
         }
     }
 }

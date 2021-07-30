@@ -45,7 +45,7 @@
 //! let mut content = String::new();
 //! for event in svg::open(path, &mut content).unwrap() {
 //!     match event {
-//!         Event::Tag(Path, _, attributes) => {
+//!         Ok(Event::Tag(Path, _, attributes)) => {
 //!             let data = attributes.get("d").unwrap();
 //!             let data = Data::parse(data).unwrap();
 //!             for command in data.iter() {
@@ -136,7 +136,7 @@ mod tests {
     fn exercise<'l>(mut parser: Parser<'l>) {
         macro_rules! test(
             ($matcher:pat) => (match parser.next().unwrap() {
-                $matcher => {}
+                Ok($matcher) => {}
                 _ => unreachable!(),
             });
         );

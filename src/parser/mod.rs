@@ -20,8 +20,6 @@ pub struct Parser<'l> {
 /// An event.
 #[derive(Debug)]
 pub enum Event<'l> {
-    /// An error.
-    Error(Error),
     /// A tag.
     Tag(&'l str, Type, Attributes),
     /// A text.
@@ -52,7 +50,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 
 macro_rules! raise(
     ($parser:expr, $($argument:tt)*) => (
-        return Some(Event::Error(Error::new($parser.reader.position(), format!($($argument)*))));
+        return Some(Err(Error::new($parser.reader.position(), format!($($argument)*))));
     );
 );
 
@@ -65,7 +63,7 @@ impl<'l> Parser<'l> {
         }
     }
 
-    fn next_angle(&mut self) -> Option<Event<'l>> {
+    fn next_angle(&mut self) -> Option<Result<Event<'l>>> {
         let content: String = self.reader.peek_many().take(4).collect();
         if content.is_empty() {
             None
@@ -82,46 +80,48 @@ impl<'l> Parser<'l> {
         }
     }
 
-    fn next_text(&mut self) -> Option<Event<'l>> {
+    fn next_text(&mut self) -> Option<Result<Event<'l>>> {
         self.reader
             .capture(|reader| reader.consume_until_char('<'))
-            .map(|content| Event::Text(content))
+            .map(|content| Ok(Event::Text(content)))
     }
 
-    fn read_comment(&mut self) -> Option<Event<'l>> {
+    fn read_comment(&mut self) -> Option<Result<Event<'l>>> {
         match self.reader.capture(|reader| reader.consume_comment()) {
             None => raise!(self, "found a malformed comment"),
-            Some(content) => Some(Event::parse_comment_body(&content[4..content.len() - 3])),
+            Some(content) => Some(Ok(Event::parse_comment_body(
+                &content[4..content.len() - 3],
+            ))),
         }
     }
 
-    fn read_declaration(&mut self) -> Option<Event<'l>> {
+    fn read_declaration(&mut self) -> Option<Result<Event<'l>>> {
         match self.reader.capture(|reader| reader.consume_declaration()) {
             None => raise!(self, "found a malformed declaration"),
-            Some(content) => Some(Event::Declaration(&content[2..content.len() - 1])),
+            Some(content) => Some(Ok(Event::Declaration(&content[2..content.len() - 1]))),
         }
     }
 
-    fn read_instruction(&mut self) -> Option<Event<'l>> {
+    fn read_instruction(&mut self) -> Option<Result<Event<'l>>> {
         match self.reader.capture(|reader| reader.consume_instruction()) {
             None => raise!(self, "found a malformed instruction"),
-            Some(content) => Some(Event::Instruction(&content[2..content.len() - 2])),
+            Some(content) => Some(Ok(Event::Instruction(&content[2..content.len() - 2]))),
         }
     }
 
-    fn read_tag(&mut self) -> Option<Event<'l>> {
+    fn read_tag(&mut self) -> Option<Result<Event<'l>>> {
         match self.reader.capture(|reader| reader.consume_tag()) {
             None => raise!(self, "found a malformed tag"),
-            Some(content) => Some(match Tag::parse(&content[1..content.len() - 1]) {
-                Ok(Tag(name, kind, attributes)) => Event::Tag(name, kind, attributes),
-                Err(error) => Event::Error(error),
-            }),
+            Some(content) => Some(
+                Tag::parse(&content[1..content.len() - 1])
+                    .map(|Tag(name, kind, attributes)| Event::Tag(name, kind, attributes)),
+            ),
         }
     }
 }
 
 impl<'l> Iterator for Parser<'l> {
-    type Item = Event<'l>;
+    type Item = Result<Event<'l>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next_text().or_else(|| self.next_angle())
@@ -137,7 +137,7 @@ mod tests {
         macro_rules! test(
             ($content:expr, $value:expr) => ({
                 let mut parser = Parser::new($content);
-                match parser.next().unwrap() {
+                match parser.next().unwrap().unwrap() {
                     Event::Tag(value, _, _) => assert_eq!(value, $value),
                     _ => unreachable!(),
                 }
@@ -154,7 +154,7 @@ mod tests {
         macro_rules! test(
             ($content:expr, $value:expr) => ({
                 let mut parser = Parser::new($content);
-                match parser.next().unwrap() {
+                match parser.next().unwrap().unwrap() {
                     Event::Text(value) => assert_eq!(value, $value),
                     _ => unreachable!(),
                 }
