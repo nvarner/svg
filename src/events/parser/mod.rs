@@ -4,6 +4,7 @@ use crate::events::Event;
 use crate::node::element::tag::Tag;
 
 pub use self::error::Error;
+
 #[doc(hidden)]
 pub use self::reader::Reader;
 

@@ -69,6 +69,7 @@ use std::path::Path;
 pub mod events;
 pub mod node;
 
+pub use crate::events::composer::Composer;
 pub use crate::events::parser::Parser;
 pub use crate::node::Node;
 

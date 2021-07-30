@@ -49,7 +49,7 @@ where
 
     fn initial_newline(&mut self) -> io::Result<()> {
         if self.initial_event_written {
-            write!(self.destination, "\n")?;
+            writeln!(self.destination)?;
         } else {
             self.initial_event_written = true;
         }
