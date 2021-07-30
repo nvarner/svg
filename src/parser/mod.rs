@@ -5,6 +5,7 @@ use crate::node::Attributes;
 
 mod error;
 mod reader;
+mod writer;
 
 pub use self::error::Error;
 
