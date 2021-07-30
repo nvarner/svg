@@ -21,7 +21,7 @@ impl<'l> Reader<'l> {
         }
     }
 
-    pub fn capture_with_whitespace<F>(&mut self, block: F) -> Option<&'l str>
+    pub fn capture<F>(&mut self, block: F) -> Option<&'l str>
     where
         F: Fn(&mut Reader<'l>) -> bool,
     {
@@ -29,26 +29,12 @@ impl<'l> Reader<'l> {
         if !block(self) {
             return None;
         }
-        let content = &self.content[start..self.offset];
+        let content = &self.content[start..self.offset].trim();
         if content.is_empty() {
             None
         } else {
             Some(content)
         }
-    }
-
-    pub fn capture<F>(&mut self, block: F) -> Option<&'l str>
-    where
-        F: Fn(&mut Reader<'l>) -> bool,
-    {
-        self.capture_with_whitespace(block).and_then(|content| {
-            let trimmed = content.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed)
-            }
-        })
     }
 
     #[inline]
