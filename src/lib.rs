@@ -146,7 +146,9 @@ mod tests {
             "Generator: Adobe Illustrator 18.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0) ",
             true,
         ));
-        test!(Event::Declaration);
+        test!(Event::Declaration(
+            r#"DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd""#
+        ));
         test!(Event::Tag("svg", _, _));
         test!(Event::Tag("path", _, _));
         test!(Event::Tag("path", _, _));

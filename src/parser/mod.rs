@@ -29,7 +29,7 @@ pub enum Event<'l> {
     /// A comment. `(content, is content padded with spaces inside comment)`
     Comment(&'l str, bool),
     /// A declaration.
-    Declaration,
+    Declaration(&'l str),
     /// An instruction.
     Instruction,
 }
@@ -108,10 +108,24 @@ impl<'l> Parser<'l> {
     }
 
     fn read_declaration(&mut self) -> Option<Event<'l>> {
-        if !self.reader.consume_declaration() {
+        if !self.reader.consume_declaration_start() {
             raise!(self, "found a malformed declaration");
         }
-        Some(Event::Declaration)
+
+        let declaration = self
+            .reader
+            .capture(|reader| reader.consume_declaration_body())
+            .map(|content| Event::Declaration(content));
+        let declaration = match declaration {
+            None => raise!(self, "found a malformed declaration"),
+            Some(declaration) => declaration,
+        };
+
+        if !self.reader.consume_declaration_end() {
+            raise!(self, "found a malformed declaration");
+        }
+
+        Some(declaration)
     }
 
     fn read_instruction(&mut self) -> Option<Event<'l>> {

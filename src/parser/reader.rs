@@ -142,11 +142,16 @@ impl<'l> Reader<'l> {
         self.consume_char('-') && self.consume_char('-') && self.consume_char('>')
     }
 
-    pub fn consume_declaration(&mut self) -> bool {
-        self.consume_char('<')
-            && self.consume_char('!')
-            && self.consume_until_char('>')
-            && self.consume_char('>')
+    pub fn consume_declaration_start(&mut self) -> bool {
+        self.consume_char('<') && self.consume_char('!')
+    }
+
+    pub fn consume_declaration_body(&mut self) -> bool {
+        self.consume_until_char('>')
+    }
+
+    pub fn consume_declaration_end(&mut self) -> bool {
+        self.consume_char('>')
     }
 
     #[inline]
