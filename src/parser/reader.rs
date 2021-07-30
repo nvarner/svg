@@ -105,11 +105,18 @@ impl<'l> Reader<'l> {
     }
 
     // https://www.w3.org/TR/REC-xml/#sec-comments
-    pub fn consume_comment_start(&mut self) -> bool {
+    pub fn consume_comment(&mut self) -> bool {
         self.consume_char('<')
             && self.consume_char('!')
             && self.consume_char('-')
             && self.consume_char('-')
+            && {
+                self.consume_comment_body();
+                true
+            }
+            && self.consume_char('-')
+            && self.consume_char('-')
+            && self.consume_char('>')
     }
 
     pub fn consume_comment_body(&mut self) -> bool {
@@ -136,10 +143,6 @@ impl<'l> Reader<'l> {
             }
         }
         consumed
-    }
-
-    pub fn consume_comment_end(&mut self) -> bool {
-        self.consume_char('-') && self.consume_char('-') && self.consume_char('>')
     }
 
     pub fn consume_declaration_start(&mut self) -> bool {
@@ -428,11 +431,7 @@ mod tests {
         macro_rules! test(
             ($content:expr, $value:expr) => ({
                 let mut reader = Reader::new($content);
-                let value = reader.capture(|reader| {
-                    reader.consume_comment_start()
-                        && reader.consume_comment_body()
-                        && reader.consume_comment_end()
-                });
+                let value = reader.capture(|reader| reader.consume_comment());
                 assert_eq!(value.unwrap(), $value);
             });
         );
@@ -443,9 +442,7 @@ mod tests {
         macro_rules! test(
             ($content:expr) => ({
                 let mut reader = Reader::new($content);
-                assert!(reader.consume_comment_start());
-                assert!(reader.consume_comment_body());
-                assert!(!reader.consume_comment_end());
+                assert!(!reader.consume_comment());
             });
         );
 

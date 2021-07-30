@@ -34,6 +34,19 @@ pub enum Event<'l> {
     Instruction,
 }
 
+impl<'l> Event<'l> {
+    fn parse_comment_body(body: &'l str) -> Self {
+        let stripped_content = body
+            .strip_prefix(" ")
+            .and_then(|content| content.strip_suffix(" "));
+        if let Some(content) = stripped_content {
+            Event::Comment(content, true)
+        } else {
+            Event::Comment(body, false)
+        }
+    }
+}
+
 /// A result.
 pub type Result<T> = ::std::result::Result<T, Error>;
 
@@ -75,36 +88,11 @@ impl<'l> Parser<'l> {
             .map(|content| Event::Text(content))
     }
 
-    fn comment_from_body(body: &str) -> Event {
-        let stripped_content = body
-            .strip_prefix(" ")
-            .and_then(|content| content.strip_suffix(" "));
-        if let Some(content) = stripped_content {
-            Event::Comment(content, true)
-        } else {
-            Event::Comment(body, false)
-        }
-    }
-
     fn read_comment(&mut self) -> Option<Event<'l>> {
-        if !self.reader.consume_comment_start() {
-            raise!(self, "found a malformed comment");
-        }
-
-        let comment = self
-            .reader
-            .capture_with_whitespace(|reader| reader.consume_comment_body())
-            .map(Self::comment_from_body);
-        let comment = match comment {
+        match self.reader.capture(|reader| reader.consume_comment()) {
             None => raise!(self, "found a malformed comment"),
-            Some(comment) => comment,
-        };
-
-        if !self.reader.consume_comment_end() {
-            raise!(self, "found a malformed comment");
+            Some(content) => Some(Event::parse_comment_body(&content[4..content.len() - 3])),
         }
-
-        Some(comment)
     }
 
     fn read_declaration(&mut self) -> Option<Event<'l>> {
