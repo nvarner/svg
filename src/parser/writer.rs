@@ -75,9 +75,18 @@ where
         write!(self.destination, "</{}>", name)
     }
 
-    fn write_text(&mut self, text: &str) -> io::Result<()> {
+    fn write_text(&mut self, content: &str) -> io::Result<()> {
         self.initial_newline()?;
-        write!(self.destination, "{}", text)
+        write!(self.destination, "{}", content)
+    }
+
+    fn write_comment(&mut self, content: &str, padded: bool) -> io::Result<()> {
+        self.initial_newline()?;
+        if padded {
+            write!(self.destination, "<!-- {} -->", content)
+        } else {
+            write!(self.destination, "<!--{}-->", content)
+        }
     }
 
     pub fn write_event(&mut self, event: &Event) -> io::Result<()> {
@@ -85,7 +94,8 @@ where
             Event::Tag(name, Type::Start, attributes) => self.write_start_tag(name, attributes),
             Event::Tag(name, Type::Empty, attributes) => self.write_empty_tag(name, attributes),
             Event::Tag(name, Type::End, _) => self.write_end_tag(name),
-            Event::Text(text) => self.write_text(text),
+            Event::Text(content) => self.write_text(content),
+            Event::Comment(content, padded) => self.write_comment(content, *padded),
             _ => todo!(),
         }
     }
@@ -96,9 +106,18 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::node::element::tag::Type;
-    use crate::node::{Node, Value};
+    use crate::node::Value;
     use crate::parser::writer::Writer;
     use crate::parser::Event;
+
+    fn events_to_string(events: &[Event]) -> String {
+        let mut output = Vec::new();
+        let mut writer = Writer::new(&mut output);
+        for event in events {
+            writer.write_event(event).unwrap();
+        }
+        String::from_utf8(output).unwrap()
+    }
 
     #[test]
     fn event_display() {
@@ -113,14 +132,8 @@ mod tests {
 
         let foo_end = Event::Tag("foo", Type::End, HashMap::new());
 
-        let mut output = Vec::new();
-        let mut writer = Writer::new(&mut output);
-        for event in &[foo, bar, foo_end] {
-            writer.write_event(event).unwrap();
-        }
-
         assert_eq!(
-            String::from_utf8_lossy(&output),
+            events_to_string(&[foo, bar, foo_end]),
             "<foo c=\"green\" s=\"12.5 13\" x=\"-10\" y=\"10px\">\n\
              <bar/>\n\
              </foo>\
@@ -136,12 +149,8 @@ mod tests {
         foo_attributes.insert("m".into(), Value::from(r#""mixed'"#));
         let foo = Event::Tag("foo", Type::Empty, foo_attributes);
 
-        let mut output = Vec::new();
-        let mut writer = Writer::new(&mut output);
-        writer.write_event(&foo).unwrap();
-
         assert_eq!(
-            String::from_utf8_lossy(&output),
+            events_to_string(&[foo]),
             r#"<foo d='"double"' s="'single'"/>"#
         );
     }
@@ -154,18 +163,21 @@ mod tests {
 
         let style_end = Event::Tag("style", Type::End, HashMap::new());
 
-        let mut output = Vec::new();
-        let mut writer = Writer::new(&mut output);
-        for event in &[style, style_text, style_end] {
-            writer.write_event(event).unwrap();
-        }
-
         assert_eq!(
-            String::from_utf8_lossy(&output),
+            events_to_string(&[style, style_text, style_end]),
             "<style>\n\
              * { font-family: foo; }\n\
              </style>\
              "
         );
+    }
+
+    #[test]
+    fn comment_display() {
+        let comment = Event::Comment("valid", true);
+        assert_eq!(events_to_string(&[comment]), "<!-- valid -->");
+
+        let comment = Event::Comment("invalid -->", true);
+        assert_eq!(events_to_string(&[comment]), "<!-- invalid --> -->");
     }
 }

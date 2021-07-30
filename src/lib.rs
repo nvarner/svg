@@ -142,7 +142,10 @@ mod tests {
         );
 
         test!(Event::Instruction);
-        test!(Event::Comment);
+        test!(Event::Comment(
+            "Generator: Adobe Illustrator 18.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0) ",
+            true,
+        ));
         test!(Event::Declaration);
         test!(Event::Tag("svg", _, _));
         test!(Event::Tag("path", _, _));

@@ -26,8 +26,8 @@ pub enum Event<'l> {
     Tag(&'l str, Type, Attributes),
     /// A text.
     Text(&'l str),
-    /// A comment.
-    Comment,
+    /// A comment. `(content, is content padded with spaces inside comment)`
+    Comment(&'l str, bool),
     /// A declaration.
     Declaration,
     /// An instruction.
@@ -75,11 +75,27 @@ impl<'l> Parser<'l> {
             .map(|content| Event::Text(content))
     }
 
-    fn read_comment(&mut self) -> Option<Event<'l>> {
-        if !self.reader.consume_comment() {
-            raise!(self, "found a malformed comment");
+    fn comment_from_content(content: &str) -> Event {
+        let stripped_content = content
+            .strip_prefix(" ")
+            .and_then(|content| content.strip_suffix(" "));
+        if let Some(stripped_content) = stripped_content {
+            Event::Comment(stripped_content, true)
+        } else {
+            Event::Comment(content, false)
         }
-        Some(Event::Comment)
+    }
+
+    fn read_comment(&mut self) -> Option<Event<'l>> {
+        let content = self
+            .reader
+            .capture(|reader| reader.consume_comment())
+            .and_then(|comment| comment.strip_prefix("<!--"))
+            .and_then(|comment| comment.strip_suffix("-->"));
+        match content {
+            None => raise!(self, "found a malformed comment"),
+            Some(content) => Some(Self::comment_from_content(content)),
+        }
     }
 
     fn read_declaration(&mut self) -> Option<Event<'l>> {
