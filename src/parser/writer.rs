@@ -89,6 +89,11 @@ where
         }
     }
 
+    fn write_declaration(&mut self, content: &str) -> io::Result<()> {
+        self.initial_newline()?;
+        write!(self.destination, "<!{}>", content)
+    }
+
     pub fn write_event(&mut self, event: &Event) -> io::Result<()> {
         match event {
             Event::Tag(name, Type::Start, attributes) => self.write_start_tag(name, attributes),
@@ -96,6 +101,7 @@ where
             Event::Tag(name, Type::End, _) => self.write_end_tag(name),
             Event::Text(content) => self.write_text(content),
             Event::Comment(content, padded) => self.write_comment(content, *padded),
+            Event::Declaration(content) => self.write_declaration(content),
             _ => todo!(),
         }
     }
@@ -179,5 +185,16 @@ mod tests {
 
         let comment = Event::Comment("invalid -->", true);
         assert_eq!(events_to_string(&[comment]), "<!-- invalid --> -->");
+    }
+
+    #[test]
+    fn declaration_display() {
+        let declaration = Event::Declaration(
+            r#"DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd""#,
+        );
+        assert_eq!(
+            events_to_string(&[declaration]),
+            r#"<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">"#
+        );
     }
 }
