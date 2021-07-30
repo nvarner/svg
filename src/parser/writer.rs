@@ -94,6 +94,11 @@ where
         write!(self.destination, "<!{}>", content)
     }
 
+    fn write_instruction(&mut self, content: &str) -> io::Result<()> {
+        self.initial_newline()?;
+        write!(self.destination, "<?{}?>", content)
+    }
+
     pub fn write_event(&mut self, event: &Event) -> io::Result<()> {
         match event {
             Event::Tag(name, Type::Start, attributes) => self.write_start_tag(name, attributes),
@@ -102,6 +107,7 @@ where
             Event::Text(content) => self.write_text(content),
             Event::Comment(content, padded) => self.write_comment(content, *padded),
             Event::Declaration(content) => self.write_declaration(content),
+            Event::Instruction(content) => self.write_instruction(content),
             _ => todo!(),
         }
     }
@@ -195,6 +201,15 @@ mod tests {
         assert_eq!(
             events_to_string(&[declaration]),
             r#"<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">"#
+        );
+    }
+
+    #[test]
+    fn instruction_display() {
+        let instruction = Event::Instruction(r#"xml version="1.0" encoding="utf-8""#);
+        assert_eq!(
+            events_to_string(&[instruction]),
+            r#"<?xml version="1.0" encoding="utf-8"?>"#
         );
     }
 }
