@@ -1,5 +1,6 @@
 use crate::node::element::tag::Type;
 use crate::node::Attributes;
+use std::borrow::Cow;
 
 pub mod composer;
 pub mod parser;
@@ -8,15 +9,61 @@ pub mod parser;
 #[derive(Debug)]
 pub enum Event<'l> {
     /// A tag.
-    Tag(&'l str, Type, Attributes),
+    Tag(Cow<'l, str>, Type, Attributes),
     /// A text.
-    Text(&'l str),
-    /// A comment. `(content, is content padded with spaces inside comment)`
-    Comment(&'l str, bool),
+    Text(Cow<'l, str>),
+    /// A padded comment (eg. `<!-- foo -->`).
+    Comment(Cow<'l, str>),
+    /// An unpadded comment (eg. `<!--foo-->`).
+    UnpaddedCommend(Cow<'l, str>),
     /// A declaration.
-    Declaration(&'l str),
+    Declaration(Cow<'l, str>),
     /// An instruction.
-    Instruction(&'l str),
+    Instruction(Cow<'l, str>),
+}
+
+impl<'l> Event<'l> {
+    pub fn new_tag<T>(name: T, children: Type, attributes: Attributes) -> Event<'l>
+    where
+        T: Into<Cow<'l, str>>,
+    {
+        Event::Tag(name.into(), children, attributes)
+    }
+
+    pub fn new_text<T>(content: T) -> Event<'l>
+    where
+        T: Into<Cow<'l, str>>,
+    {
+        Event::Text(content.into())
+    }
+
+    pub fn new_comment<T>(content: T) -> Event<'l>
+    where
+        T: Into<Cow<'l, str>>,
+    {
+        Event::Comment(content.into())
+    }
+
+    pub fn new_comment_unpadded<T>(content: T) -> Event<'l>
+    where
+        T: Into<Cow<'l, str>>,
+    {
+        Event::UnpaddedCommend(content.into())
+    }
+
+    pub fn new_declaration<T>(content: T) -> Event<'l>
+    where
+        T: Into<Cow<'l, str>>,
+    {
+        Event::Declaration(content.into())
+    }
+
+    pub fn new_instruction<T>(content: T) -> Event<'l>
+    where
+        T: Into<Cow<'l, str>>,
+    {
+        Event::Instruction(content.into())
+    }
 }
 
 #[cfg(test)]

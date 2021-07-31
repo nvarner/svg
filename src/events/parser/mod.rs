@@ -54,7 +54,7 @@ impl<'l> Parser<'l> {
     fn next_text(&mut self) -> Option<Result<Event<'l>>> {
         self.reader
             .capture(|reader| reader.consume_until_char('<'))
-            .map(|content| Ok(Event::Text(content)))
+            .map(|content| Ok(Event::new_text(content)))
     }
 
     fn parse_comment_body(body: &'l str) -> Event {
@@ -62,9 +62,9 @@ impl<'l> Parser<'l> {
             .strip_prefix(" ")
             .and_then(|content| content.strip_suffix(" "));
         if let Some(content) = stripped_content {
-            Event::Comment(content, true)
+            Event::new_comment(content)
         } else {
-            Event::Comment(body, false)
+            Event::new_comment_unpadded(body)
         }
     }
 
@@ -78,14 +78,14 @@ impl<'l> Parser<'l> {
     fn read_declaration(&mut self) -> Option<Result<Event<'l>>> {
         match self.reader.capture(|reader| reader.consume_declaration()) {
             None => raise!(self, "found a malformed declaration"),
-            Some(content) => Some(Ok(Event::Declaration(&content[2..content.len() - 1]))),
+            Some(content) => Some(Ok(Event::new_declaration(&content[2..content.len() - 1]))),
         }
     }
 
     fn read_instruction(&mut self) -> Option<Result<Event<'l>>> {
         match self.reader.capture(|reader| reader.consume_instruction()) {
             None => raise!(self, "found a malformed instruction"),
-            Some(content) => Some(Ok(Event::Instruction(&content[2..content.len() - 2]))),
+            Some(content) => Some(Ok(Event::new_instruction(&content[2..content.len() - 2]))),
         }
     }
 
@@ -94,7 +94,7 @@ impl<'l> Parser<'l> {
             None => raise!(self, "found a malformed tag"),
             Some(content) => Some(
                 Tag::parse(&content[1..content.len() - 1])
-                    .map(|Tag(name, kind, attributes)| Event::Tag(name, kind, attributes)),
+                    .map(|Tag(name, kind, attributes)| Event::new_tag(name, kind, attributes)),
             ),
         }
     }

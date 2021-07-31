@@ -1,38 +1,36 @@
 //! The nodes.
 
+use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fmt;
 
+use crate::node::element::Element;
+
 mod value;
 
 pub use self::value::Value;
-use crate::events::Event;
-use crate::node::element::tag::Type;
-use crate::node::element::Element;
-use std::borrow::Cow;
-use std::fmt::Debug;
 
 /// Attributes.
 pub type Attributes = HashMap<String, Value>;
 
 /// Child nodes.
-pub type Children = Vec<Box<dyn Node>>;
+pub type Children<'l> = Vec<Box<dyn Node<'l>>>;
 
 /// Complete SVG document.
-pub struct Document {
+pub struct Document<'l> {
     /// The prolog. Name for the metadata before `<svg>`, like `<?xml ... ?>` and `<!DOCTYPE ...>`.
     /// See also [the XML spec](https://www.w3.org/TR/REC-xml/#sec-prolog-dtd).
-    prolog: Vec<Box<dyn Node>>,
+    prolog: Vec<Node_<'l>>,
     /// The `<svg>` element.
-    svg: Box<dyn Node>,
+    svg: Box<Node_<'l>>,
     /// All elements following `</svg>`.
-    misc_followers: Vec<Box<dyn Node>>,
+    misc_followers: Vec<Node_<'l>>,
 }
 
 pub enum Node_<'l> {
     /// An element.
-    Element(Element),
+    Element(Element<'l>),
     /// A text node.
     Text(Cow<'l, str>),
     /// A comment. `(content, is content padded with spaces inside comment)`
@@ -44,7 +42,7 @@ pub enum Node_<'l> {
 }
 
 impl<'l> Node_<'l> {
-    pub fn new_element<T: Into<String>>(name: T) -> Self {
+    pub fn new_element<T: Into<Cow<'l, str>>>(name: T) -> Self {
         Node_::Element(Element::new(name))
     }
 
@@ -82,14 +80,14 @@ impl<'l> Node_<'l> {
 }
 
 /// A node.
-pub trait Node:
-    'static + fmt::Debug + fmt::Display + NodeClone + NodeDefaultHash + Send + Sync
+pub trait Node<'l>:
+    'l + fmt::Debug + fmt::Display + NodeClone<'l> + NodeDefaultHash + Send + Sync
 {
     /// Append a child node.
     fn append<T>(&mut self, _: T)
     where
         Self: Sized,
-        T: Node;
+        T: Node<'l>;
 
     /// Assign an attribute.
     fn assign<T, U>(&mut self, _: T, _: U)
@@ -100,8 +98,8 @@ pub trait Node:
 }
 
 #[doc(hidden)]
-pub trait NodeClone {
-    fn clone(&self) -> Box<dyn Node>;
+pub trait NodeClone<'l> {
+    fn clone(&self) -> Box<dyn Node<'l>>;
 }
 
 #[doc(hidden)]
@@ -109,24 +107,24 @@ pub trait NodeDefaultHash {
     fn default_hash(&self, state: &mut DefaultHasher);
 }
 
-impl<T> NodeClone for T
+impl<'l, T> NodeClone<'l> for T
 where
-    T: Node + Clone,
+    T: Node<'l> + Clone,
 {
     #[inline]
-    fn clone(&self) -> Box<dyn Node> {
+    fn clone(&self) -> Box<dyn Node<'l>> {
         Box::new(Clone::clone(self))
     }
 }
 
-impl NodeDefaultHash for Box<dyn Node> {
+impl<'l> NodeDefaultHash for Box<dyn Node<'l>> {
     #[inline]
     fn default_hash(&self, state: &mut DefaultHasher) {
         NodeDefaultHash::default_hash(&**self, state)
     }
 }
 
-impl Clone for Box<dyn Node> {
+impl<'l> Clone for Box<dyn Node<'l>> {
     #[inline]
     fn clone(&self) -> Self {
         NodeClone::clone(&**self)
@@ -135,11 +133,11 @@ impl Clone for Box<dyn Node> {
 
 macro_rules! node(
     ($struct_name:ident::$field_name:ident) => (
-        impl $struct_name {
+        impl<'l> $struct_name<'l> {
             /// Append a node.
             pub fn add<T>(mut self, node: T) -> Self
             where
-                T: crate::node::Node,
+                T: crate::node::Node<'l>,
             {
                 crate::node::Node::append(&mut self, node);
                 self
@@ -158,16 +156,16 @@ macro_rules! node(
 
             /// Return the inner element.
             #[inline]
-            pub fn get_inner(&self) -> &Element {
+            pub fn get_inner(&'l self) -> &'l Element {
                 &self.inner
             }
         }
 
-        impl crate::node::Node for $struct_name {
+        impl<'l> crate::node::Node<'l> for $struct_name<'l> {
             #[inline]
             fn append<T>(&mut self, node: T)
             where
-                T: crate::node::Node,
+                T: crate::node::Node<'l>,
             {
                 self.$field_name.append(node);
             }
@@ -182,16 +180,16 @@ macro_rules! node(
             }
         }
 
-        impl ::std::fmt::Display for $struct_name {
+        impl<'l> ::std::fmt::Display for $struct_name<'l> {
             #[inline]
             fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 self.$field_name.fmt(formatter)
             }
         }
 
-        impl Into<Element> for $struct_name {
+        impl<'l> Into<Element<'l>> for $struct_name<'l> {
             #[inline]
-            fn into(self) -> Element {
+            fn into(self) -> Element<'l> {
                 self.inner
             }
         }

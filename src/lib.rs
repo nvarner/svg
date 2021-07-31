@@ -45,7 +45,7 @@
 //! let mut content = String::new();
 //! for event in svg::open(path, &mut content).unwrap() {
 //!     match event {
-//!         Ok(Event::Tag(Path, _, attributes)) => {
+//!         Ok(Event::Tag(name, _, attributes)) if &name == Path => {
 //!             let data = attributes.get("d").unwrap();
 //!             let data = Data::parse(data).unwrap();
 //!             for command in data.iter() {
@@ -74,7 +74,7 @@ pub use crate::events::parser::Parser;
 pub use crate::node::Node;
 
 /// A document.
-pub type Document = node::element::SVG;
+pub type Document<'l> = node::element::SVG<'l>;
 
 /// Open a document.
 pub fn open<'l, T>(path: T, mut content: &'l mut String) -> io::Result<Parser<'l>>
@@ -92,20 +92,20 @@ pub fn read<'l>(content: &'l str) -> io::Result<Parser<'l>> {
 }
 
 /// Save a document.
-pub fn save<T, U>(path: T, document: &U) -> io::Result<()>
+pub fn save<'l, T, U>(path: T, document: &U) -> io::Result<()>
 where
     T: AsRef<Path>,
-    U: Node,
+    U: Node<'l>,
 {
     let mut file = File::create(path)?;
     file.write_all(&document.to_string().into_bytes())
 }
 
 /// Write a document.
-pub fn write<T, U>(mut target: T, document: &U) -> io::Result<()>
+pub fn write<'l, T, U>(mut target: T, document: &U) -> io::Result<()>
 where
     T: Write,
-    U: Node,
+    U: Node<'l>,
 {
     target.write_all(&document.to_string().into_bytes())
 }
@@ -117,6 +117,7 @@ mod tests {
 
     use crate::events::parser::Parser;
     use crate::events::Event;
+    use std::borrow::Cow;
 
     const TEST_PATH: &'static str = "tests/fixtures/benton.svg";
 
@@ -143,20 +144,21 @@ mod tests {
             });
         );
 
-        test!(Event::Instruction(r#"xml version="1.0" encoding="utf-8""#));
-        test!(Event::Comment(
-            "Generator: Adobe Illustrator 18.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0) ",
-            true,
-        ));
-        test!(Event::Declaration(
+        test!(Event::Instruction(Cow::Borrowed(
+            r#"xml version="1.0" encoding="utf-8""#
+        )));
+        test!(Event::Comment(Cow::Borrowed(
+            "Generator: Adobe Illustrator 18.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0) "
+        )));
+        test!(Event::Declaration(Cow::Borrowed(
             r#"DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd""#
-        ));
-        test!(Event::Tag("svg", _, _));
-        test!(Event::Tag("path", _, _));
-        test!(Event::Tag("path", _, _));
-        test!(Event::Tag("path", _, _));
-        test!(Event::Tag("path", _, _));
-        test!(Event::Tag("svg", _, _));
+        )));
+        test!(Event::Tag(Cow::Borrowed("svg"), _, _));
+        test!(Event::Tag(Cow::Borrowed("path"), _, _));
+        test!(Event::Tag(Cow::Borrowed("path"), _, _));
+        test!(Event::Tag(Cow::Borrowed("path"), _, _));
+        test!(Event::Tag(Cow::Borrowed("path"), _, _));
+        test!(Event::Tag(Cow::Borrowed("svg"), _, _));
 
         assert!(parser.next().is_none());
     }

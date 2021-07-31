@@ -7,23 +7,27 @@ use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::Hash;
 
+use crate::events::Event;
+use crate::node::element::tag::Type;
 use crate::node::{Attributes, Children, Node, Value};
+use std::borrow::Cow;
+use std::collections::HashMap;
 
 pub mod path;
 pub mod tag;
 
 /// An element.
 #[derive(Clone, Debug)]
-pub struct Element {
-    name: String,
+pub struct Element<'l> {
+    name: Cow<'l, str>,
     attributes: Attributes,
-    children: Children,
+    children: Children<'l>,
 }
 
-impl Element {
+impl<'l> Element<'l> {
     pub fn new<T>(name: T) -> Self
     where
-        T: Into<String>,
+        T: Into<Cow<'l, str>>,
     {
         Element {
             name: name.into(),
@@ -33,7 +37,7 @@ impl Element {
     }
 
     #[inline]
-    pub fn get_name(&self) -> &String {
+    pub fn get_name(&self) -> &str {
         &self.name
     }
 
@@ -43,12 +47,26 @@ impl Element {
     }
 
     #[inline]
-    pub fn get_children(&self) -> &Children {
+    pub fn get_children(&self) -> &'l Children {
         &self.children
+    }
+
+    pub fn into_events(self) -> Vec<Event<'l>> {
+        if self.children.is_empty() {
+            vec![Event::new_tag(self.name, Type::Empty, self.attributes)]
+        } else {
+            let mut child_events: Vec<Event<'l>> = todo!();
+            child_events.insert(
+                0,
+                Event::new_tag(self.name.clone(), Type::Start, self.attributes),
+            );
+            child_events.push(Event::new_tag(self.name, Type::End, HashMap::new()));
+            child_events
+        }
     }
 }
 
-impl fmt::Display for Element {
+impl<'l> fmt::Display for Element<'l> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "<{}", self.name)?;
         let mut attributes = self.attributes.iter().collect::<Vec<_>>();
@@ -75,11 +93,11 @@ impl fmt::Display for Element {
     }
 }
 
-impl Node for Element {
+impl<'l> Node<'l> for Element<'l> {
     #[inline]
     fn append<T>(&mut self, node: T)
     where
-        T: Node,
+        T: Node<'l>,
     {
         self.children.push(Box::new(node));
     }
@@ -98,11 +116,11 @@ macro_rules! implement {
     ($(#[$doc:meta] struct $struct_name:ident)*) => ($(
         #[$doc]
         #[derive(Clone, Debug)]
-        pub struct $struct_name {
-            inner: Element,
+        pub struct $struct_name<'l> {
+            inner: Element<'l>,
         }
 
-        impl $struct_name {
+        impl<'l> $struct_name<'l> {
             /// Create a node.
             #[inline]
             pub fn new() -> Self {
@@ -112,13 +130,13 @@ macro_rules! implement {
             }
         }
 
-        impl Default for $struct_name {
+        impl<'l> Default for $struct_name<'l> {
             fn default() -> Self {
                 Self::new()
             }
         }
 
-        impl super::NodeDefaultHash for $struct_name {
+        impl<'l> super::NodeDefaultHash for $struct_name<'l> {
             #[inline]
             fn default_hash(&self, state: &mut DefaultHasher) {
                 self.inner.default_hash(state);
@@ -129,7 +147,7 @@ macro_rules! implement {
     )*);
 }
 
-impl super::NodeDefaultHash for Element {
+impl<'l> super::NodeDefaultHash for Element<'l> {
     fn default_hash(&self, state: &mut DefaultHasher) {
         self.name.hash(state);
         self.attributes.iter().for_each(|(key, value)| {
@@ -246,12 +264,12 @@ macro_rules! implement {
     )*) => ($(
         #[$doc]
         #[derive(Clone, Debug)]
-        pub struct $struct_name {
-            inner: Element,
+        pub struct $struct_name<'l> {
+            inner: Element<'l>,
         }
 
         implement! { @itemize
-            impl $struct_name {
+            impl<'l> $struct_name<'l> {
                 /// Create a node.
                 #[inline]
                 pub fn new<$($pn: $($pt)*),*>($($an: $at),*) -> Self {
@@ -266,7 +284,7 @@ macro_rules! implement {
             }
         }
 
-        impl super::NodeDefaultHash for $struct_name {
+        impl<'l> super::NodeDefaultHash for $struct_name<'l> {
             fn default_hash(&self, state: &mut DefaultHasher) {
                 self.inner.default_hash(state);
             }
