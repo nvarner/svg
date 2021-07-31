@@ -18,6 +18,17 @@ pub type Attributes = HashMap<String, Value>;
 /// Child nodes.
 pub type Children = Vec<Box<dyn Node>>;
 
+/// Complete SVG document.
+pub struct Document {
+    /// The prolog. Name for the metadata before `<svg>`, like `<?xml ... ?>` and `<!DOCTYPE ...>`.
+    /// See also [the XML spec](https://www.w3.org/TR/REC-xml/#sec-prolog-dtd).
+    prolog: Vec<Box<dyn Node>>,
+    /// The `<svg>` element.
+    svg: Box<dyn Node>,
+    /// All elements following `</svg>`.
+    misc_followers: Vec<Box<dyn Node>>,
+}
+
 /// A node.
 pub trait Node:
     'static + fmt::Debug + fmt::Display + NodeClone + NodeDefaultHash + Send + Sync
