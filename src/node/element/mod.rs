@@ -5,7 +5,7 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 
 use crate::events::Event;
 use crate::node::element::tag::Type;
@@ -51,16 +51,16 @@ impl<'l> Element<'l> {
         &self.children
     }
 
-    pub fn into_events(self) -> Vec<Event<'l>> {
+    pub fn to_events(&'l self) -> Vec<Event<'l>> {
         if self.children.is_empty() {
-            vec![Event::new_tag(self.name, Type::Empty, self.attributes)]
+            vec![Event::Tag(&self.name, Type::Empty, self.attributes.clone())]
         } else {
             let mut child_events: Vec<Event<'l>> = todo!();
             child_events.insert(
                 0,
-                Event::new_tag(self.name.clone(), Type::Start, self.attributes),
+                Event::Tag(&self.name, Type::Start, self.attributes.clone()),
             );
-            child_events.push(Event::new_tag(self.name, Type::End, HashMap::new()));
+            child_events.push(Event::Tag(&self.name, Type::End, HashMap::new()));
             child_events
         }
     }
@@ -87,7 +87,7 @@ impl<'l> fmt::Display for Element<'l> {
         }
         write!(formatter, ">")?;
         for child in self.children.iter() {
-            write!(formatter, "\n{}", child)?;
+            write!(formatter, "\n{:?}", child)?;
         }
         write!(formatter, "\n</{}>", self.name)
     }
@@ -99,7 +99,8 @@ impl<'l> Node<'l> for Element<'l> {
     where
         T: Node<'l>,
     {
-        self.children.push(Box::new(node));
+        todo!()
+        // self.children.push(Box::new(node));
     }
 
     #[inline]
@@ -147,6 +148,17 @@ macro_rules! implement {
     )*);
 }
 
+impl<'l> Hash for Element<'l> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.attributes.iter().for_each(|(key, value)| {
+            key.hash(state);
+            value.hash(state)
+        });
+        self.children.iter().for_each(|child| child.hash(state));
+    }
+}
+
 impl<'l> super::NodeDefaultHash for Element<'l> {
     fn default_hash(&self, state: &mut DefaultHasher) {
         self.name.hash(state);
@@ -154,9 +166,7 @@ impl<'l> super::NodeDefaultHash for Element<'l> {
             key.hash(state);
             value.hash(state)
         });
-        self.children
-            .iter()
-            .for_each(|child| child.default_hash(state));
+        self.children.iter().for_each(|child| child.hash(state));
     }
 }
 

@@ -144,21 +144,19 @@ mod tests {
             });
         );
 
-        test!(Event::Instruction(Cow::Borrowed(
-            r#"xml version="1.0" encoding="utf-8""#
-        )));
-        test!(Event::Comment(Cow::Borrowed(
+        test!(Event::Instruction(r#"xml version="1.0" encoding="utf-8""#));
+        test!(Event::Comment(
             "Generator: Adobe Illustrator 18.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0) "
-        )));
-        test!(Event::Declaration(Cow::Borrowed(
+        ));
+        test!(Event::Declaration(
             r#"DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd""#
-        )));
-        test!(Event::Tag(Cow::Borrowed("svg"), _, _));
-        test!(Event::Tag(Cow::Borrowed("path"), _, _));
-        test!(Event::Tag(Cow::Borrowed("path"), _, _));
-        test!(Event::Tag(Cow::Borrowed("path"), _, _));
-        test!(Event::Tag(Cow::Borrowed("path"), _, _));
-        test!(Event::Tag(Cow::Borrowed("svg"), _, _));
+        ));
+        test!(Event::Tag("svg", _, _));
+        test!(Event::Tag("path", _, _));
+        test!(Event::Tag("path", _, _));
+        test!(Event::Tag("path", _, _));
+        test!(Event::Tag("path", _, _));
+        test!(Event::Tag("svg", _, _));
 
         assert!(parser.next().is_none());
     }

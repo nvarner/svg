@@ -15,7 +15,7 @@ pub use self::value::Value;
 pub type Attributes = HashMap<String, Value>;
 
 /// Child nodes.
-pub type Children<'l> = Vec<Box<dyn Node<'l>>>;
+pub type Children<'l> = Vec<Node_<'l>>;
 
 /// Complete SVG document.
 pub struct Document<'l> {
@@ -23,18 +23,21 @@ pub struct Document<'l> {
     /// See also [the XML spec](https://www.w3.org/TR/REC-xml/#sec-prolog-dtd).
     prolog: Vec<Node_<'l>>,
     /// The `<svg>` element.
-    svg: Box<Node_<'l>>,
+    svg: Node_<'l>,
     /// All elements following `</svg>`.
     misc_followers: Vec<Node_<'l>>,
 }
 
+#[derive(Debug, Clone, Hash)]
 pub enum Node_<'l> {
     /// An element.
     Element(Element<'l>),
     /// A text node.
     Text(Cow<'l, str>),
-    /// A comment. `(content, is content padded with spaces inside comment)`
-    Comment(Cow<'l, str>, bool),
+    /// A padded comment (eg. `<!-- foo -->`).
+    Comment(Cow<'l, str>),
+    /// An unpadded comment (eg. `<!--foo-->`).
+    UnpaddedComment(Cow<'l, str>),
     /// A declaration.
     Declaration(Cow<'l, str>),
     /// An instruction.
@@ -56,14 +59,14 @@ impl<'l> Node_<'l> {
     /// `<!-- foo -->` in XML).
     #[inline]
     pub fn new_comment<T: Into<Cow<'l, str>>>(content: T) -> Self {
-        Node_::Comment(content.into(), true)
+        Node_::Comment(content.into())
     }
 
     /// Create a comment node. The content will be unpadded (eg. `new_comment("foo")` would be
     /// `<!--foo-->` in XML).
     #[inline]
-    pub fn new_comment_unpadded<T: Into<Cow<'l, str>>>(content: T) -> Self {
-        Node_::Comment(content.into(), false)
+    pub fn new_unpadded_comment<T: Into<Cow<'l, str>>>(content: T) -> Self {
+        Node_::UnpaddedComment(content.into())
     }
 
     /// Creates a declaration node.

@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::Deref;
 
 /// A value of an attribute.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct Value(String);
 
 impl Deref for Value {

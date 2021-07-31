@@ -107,7 +107,7 @@ where
             Event::Tag(name, Type::End, _) => self.write_end_tag(name),
             Event::Text(content) => self.write_text(content),
             Event::Comment(content) => self.write_comment(content),
-            Event::UnpaddedCommend(content) => self.write_unpadded_comment(content),
+            Event::UnpaddedComment(content) => self.write_unpadded_comment(content),
             Event::Declaration(content) => self.write_declaration(content),
             Event::Instruction(content) => self.write_instruction(content),
         }
@@ -139,11 +139,11 @@ mod tests {
         foo_attributes.insert("y".into(), Value::from("10px"));
         foo_attributes.insert("s".into(), Value::from((12.5, 13.0)));
         foo_attributes.insert("c".into(), Value::from("green"));
-        let foo = Event::new_tag("foo", Type::Start, foo_attributes);
+        let foo = Event::Tag("foo", Type::Start, foo_attributes);
 
-        let bar = Event::new_tag("bar", Type::Empty, HashMap::new());
+        let bar = Event::Tag("bar", Type::Empty, HashMap::new());
 
-        let foo_end = Event::new_tag("foo", Type::End, HashMap::new());
+        let foo_end = Event::Tag("foo", Type::End, HashMap::new());
 
         assert_eq!(
             events_to_string(&[foo, bar, foo_end]),
@@ -160,7 +160,7 @@ mod tests {
         foo_attributes.insert("s".into(), Value::from("'single'"));
         foo_attributes.insert("d".into(), Value::from(r#""double""#));
         foo_attributes.insert("m".into(), Value::from(r#""mixed'"#));
-        let foo = Event::new_tag("foo", Type::Empty, foo_attributes);
+        let foo = Event::Tag("foo", Type::Empty, foo_attributes);
 
         assert_eq!(
             events_to_string(&[foo]),
@@ -170,11 +170,11 @@ mod tests {
 
     #[test]
     fn style_display() {
-        let style = Event::new_tag("style", Type::Start, HashMap::new());
+        let style = Event::Tag("style", Type::Start, HashMap::new());
 
-        let style_text = Event::new_text("* { font-family: foo; }");
+        let style_text = Event::Text("* { font-family: foo; }");
 
-        let style_end = Event::new_tag("style", Type::End, HashMap::new());
+        let style_end = Event::Tag("style", Type::End, HashMap::new());
 
         assert_eq!(
             events_to_string(&[style, style_text, style_end]),
@@ -187,16 +187,16 @@ mod tests {
 
     #[test]
     fn comment_display() {
-        let comment = Event::new_comment("valid");
+        let comment = Event::Comment("valid");
         assert_eq!(events_to_string(&[comment]), "<!-- valid -->");
 
-        let comment = Event::new_comment("invalid -->");
+        let comment = Event::Comment("invalid -->");
         assert_eq!(events_to_string(&[comment]), "<!-- invalid --> -->");
     }
 
     #[test]
     fn declaration_display() {
-        let declaration = Event::new_declaration(
+        let declaration = Event::Declaration(
             r#"DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd""#,
         );
         assert_eq!(
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn instruction_display() {
-        let instruction = Event::new_instruction(r#"xml version="1.0" encoding="utf-8""#);
+        let instruction = Event::Instruction(r#"xml version="1.0" encoding="utf-8""#);
         assert_eq!(
             events_to_string(&[instruction]),
             r#"<?xml version="1.0" encoding="utf-8"?>"#
