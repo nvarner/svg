@@ -4,13 +4,14 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fmt;
 
-mod comment;
-mod text;
 mod value;
 
-pub use self::comment::Comment;
-pub use self::text::Text;
 pub use self::value::Value;
+use crate::events::Event;
+use crate::node::element::tag::Type;
+use crate::node::element::Element;
+use std::borrow::Cow;
+use std::fmt::Debug;
 
 /// Attributes.
 pub type Attributes = HashMap<String, Value>;
@@ -27,6 +28,57 @@ pub struct Document {
     svg: Box<dyn Node>,
     /// All elements following `</svg>`.
     misc_followers: Vec<Box<dyn Node>>,
+}
+
+pub enum Node_<'l> {
+    /// An element.
+    Element(Element),
+    /// A text node.
+    Text(Cow<'l, str>),
+    /// A comment. `(content, is content padded with spaces inside comment)`
+    Comment(Cow<'l, str>, bool),
+    /// A declaration.
+    Declaration(Cow<'l, str>),
+    /// An instruction.
+    Instruction(Cow<'l, str>),
+}
+
+impl<'l> Node_<'l> {
+    pub fn new_element<T: Into<String>>(name: T) -> Self {
+        Node_::Element(Element::new(name))
+    }
+
+    /// Creates a text node.
+    #[inline]
+    pub fn new_text<T: Into<Cow<'l, str>>>(content: T) -> Self {
+        Node_::Text(content.into())
+    }
+
+    /// Create a comment node. The content will be padded (eg. `new_comment("foo")` would be
+    /// `<!-- foo -->` in XML).
+    #[inline]
+    pub fn new_comment<T: Into<Cow<'l, str>>>(content: T) -> Self {
+        Node_::Comment(content.into(), true)
+    }
+
+    /// Create a comment node. The content will be unpadded (eg. `new_comment("foo")` would be
+    /// `<!--foo-->` in XML).
+    #[inline]
+    pub fn new_comment_unpadded<T: Into<Cow<'l, str>>>(content: T) -> Self {
+        Node_::Comment(content.into(), false)
+    }
+
+    /// Creates a declaration node.
+    #[inline]
+    pub fn new_declaration<T: Into<Cow<'l, str>>>(content: T) -> Self {
+        Node_::Declaration(content.into())
+    }
+
+    /// Creates an instruction node.
+    #[inline]
+    pub fn new_instruction<T: Into<Cow<'l, str>>>(content: T) -> Self {
+        Node_::Instruction(content.into())
+    }
 }
 
 /// A node.
