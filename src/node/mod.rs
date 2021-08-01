@@ -10,6 +10,8 @@ use crate::node::element::Element;
 mod value;
 
 pub use self::value::Value;
+use crate::events::Event;
+use crate::node::element::tag::Type;
 
 /// Attributes.
 pub type Attributes = HashMap<String, Value>;
@@ -79,6 +81,17 @@ impl<'l> Node_<'l> {
     #[inline]
     pub fn new_instruction<T: Into<Cow<'l, str>>>(content: T) -> Self {
         Node_::Instruction(content.into())
+    }
+
+    pub fn to_events(&'l self) -> Vec<Event<'l>> {
+        match self {
+            Node_::Element(element) => element.to_events(),
+            Node_::Text(content) => vec![Event::Text(content)],
+            Node_::Comment(content) => vec![Event::Comment(content)],
+            Node_::UnpaddedComment(content) => vec![Event::UnpaddedComment(content)],
+            Node_::Declaration(content) => vec![Event::Declaration(content)],
+            Node_::Instruction(content) => vec![Event::Instruction(content)],
+        }
     }
 }
 

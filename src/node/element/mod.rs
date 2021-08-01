@@ -3,15 +3,18 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::should_implement_trait)]
 
+use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
-use std::fmt;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::iter::once;
+use std::{fmt, io};
 
+use crate::events::composer::Writer;
 use crate::events::Event;
 use crate::node::element::tag::Type;
 use crate::node::{Attributes, Children, Node, Value};
-use std::borrow::Cow;
-use std::collections::HashMap;
+use crate::Composer;
 
 pub mod path;
 pub mod tag;
@@ -55,41 +58,26 @@ impl<'l> Element<'l> {
         if self.children.is_empty() {
             vec![Event::Tag(&self.name, Type::Empty, self.attributes.clone())]
         } else {
-            let mut child_events: Vec<Event<'l>> = todo!();
-            child_events.insert(
-                0,
-                Event::Tag(&self.name, Type::Start, self.attributes.clone()),
-            );
-            child_events.push(Event::Tag(&self.name, Type::End, HashMap::new()));
-            child_events
+            let mut child_events = self.children.iter().flat_map(|child| child.to_events());
+
+            once(Event::Tag(&self.name, Type::Start, self.attributes.clone()))
+                .chain(child_events)
+                .chain(once(Event::Tag(&self.name, Type::End, HashMap::new())))
+                .collect()
         }
     }
 }
 
 impl<'l> fmt::Display for Element<'l> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "<{}", self.name)?;
-        let mut attributes = self.attributes.iter().collect::<Vec<_>>();
-        attributes.sort_by_key(|pair| pair.0.as_str());
-        for (name, value) in attributes {
-            match (value.contains('\''), value.contains('"')) {
-                (true, false) | (false, false) => {
-                    write!(formatter, r#" {}="{}""#, name, value)?;
-                }
-                (false, true) => {
-                    write!(formatter, r#" {}='{}'"#, name, value)?;
-                }
-                _ => {}
-            }
-        }
-        if self.children.is_empty() {
-            return write!(formatter, "/>");
-        }
-        write!(formatter, ">")?;
-        for child in self.children.iter() {
-            write!(formatter, "\n{:?}", child)?;
-        }
-        write!(formatter, "\n</{}>", self.name)
+        let mut displayed = Vec::new();
+        let mut composer = Composer::new(&mut displayed);
+        self.to_events()
+            .iter()
+            .map(|event| composer.write_event(event))
+            .collect::<io::Result<()>>()
+            .map_err(|_error| fmt::Error)?;
+        write!(formatter, "{}", String::from_utf8_lossy(&displayed))
     }
 }
 
@@ -99,7 +87,6 @@ impl<'l> Node<'l> for Element<'l> {
     where
         T: Node<'l>,
     {
-        todo!()
         // self.children.push(Box::new(node));
     }
 
