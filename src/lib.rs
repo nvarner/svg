@@ -45,7 +45,7 @@
 //! let mut content = String::new();
 //! for event in svg::open(path, &mut content).unwrap() {
 //!     match event {
-//!         Ok(Event::Tag(name, _, attributes)) if &name == Path => {
+//!         Ok(Event::Tag(Path, _, attributes)) => {
 //!             let data = attributes.get("d").unwrap();
 //!             let data = Data::parse(data).unwrap();
 //!             for command in data.iter() {
@@ -71,10 +71,9 @@ pub mod node;
 
 pub use crate::events::composer::Composer;
 pub use crate::events::parser::Parser;
-pub use crate::node::Node;
+pub use crate::node::Element;
 
-/// A document.
-pub type Document<'l> = node::element::SVG<'l>;
+pub use node::Document;
 
 /// Open a document.
 pub fn open<'l, T>(path: T, mut content: &'l mut String) -> io::Result<Parser<'l>>
@@ -92,22 +91,27 @@ pub fn read<'l>(content: &'l str) -> io::Result<Parser<'l>> {
 }
 
 /// Save a document.
-pub fn save<'l, T, U>(path: T, document: &U) -> io::Result<()>
+pub fn save<'l, T, U>(path: T, document: U) -> io::Result<()>
 where
     T: AsRef<Path>,
-    U: Node<'l>,
+    U: Into<&'l Document<'l>>,
 {
-    let mut file = File::create(path)?;
-    file.write_all(&document.to_string().into_bytes())
+    let file = File::create(path)?;
+    write(file, document)
 }
 
 /// Write a document.
-pub fn write<'l, T, U>(mut target: T, document: &U) -> io::Result<()>
+pub fn write<'l, T, U>(mut target: T, document: U) -> io::Result<()>
 where
     T: Write,
-    U: Node<'l>,
+    U: Into<&'l Document<'l>>,
 {
-    target.write_all(&document.to_string().into_bytes())
+    let document: &Document = document.into();
+    let mut composer = Composer::new(&mut target);
+    document
+        .to_events()
+        .iter()
+        .try_for_each(|event| composer.write_event(event))
 }
 
 #[cfg(test)]
@@ -117,7 +121,6 @@ mod tests {
 
     use crate::events::parser::Parser;
     use crate::events::Event;
-    use std::borrow::Cow;
 
     const TEST_PATH: &'static str = "tests/fixtures/benton.svg";
 

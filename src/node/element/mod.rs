@@ -6,14 +6,13 @@
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::iter::once;
-use std::{fmt, io};
 
-use crate::events::composer::Writer;
 use crate::events::Event;
 use crate::node::element::tag::Type;
-use crate::node::{Attributes, Children, Node, Value};
+use crate::node::{Attributes, Children, Element, Node, Value};
 use crate::Composer;
 
 pub mod path;
@@ -21,18 +20,18 @@ pub mod tag;
 
 /// An element.
 #[derive(Clone, Debug)]
-pub struct Element<'l> {
+pub struct GenericElement<'l> {
     name: Cow<'l, str>,
     attributes: Attributes,
     children: Children<'l>,
 }
 
-impl<'l> Element<'l> {
+impl<'l> GenericElement<'l> {
     pub fn new<T>(name: T) -> Self
     where
         T: Into<Cow<'l, str>>,
     {
-        Element {
+        GenericElement {
             name: name.into(),
             attributes: Attributes::new(),
             children: Children::new(),
@@ -58,7 +57,7 @@ impl<'l> Element<'l> {
         if self.children.is_empty() {
             vec![Event::Tag(&self.name, Type::Empty, self.attributes.clone())]
         } else {
-            let mut child_events = self.children.iter().flat_map(|child| child.to_events());
+            let child_events = self.children.iter().flat_map(|child| child.to_events());
 
             once(Event::Tag(&self.name, Type::Start, self.attributes.clone()))
                 .chain(child_events)
@@ -68,26 +67,25 @@ impl<'l> Element<'l> {
     }
 }
 
-impl<'l> fmt::Display for Element<'l> {
+impl<'l> fmt::Display for GenericElement<'l> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let mut displayed = Vec::new();
         let mut composer = Composer::new(&mut displayed);
         self.to_events()
             .iter()
-            .map(|event| composer.write_event(event))
-            .collect::<io::Result<()>>()
+            .try_for_each(|event| composer.write_event(event))
             .map_err(|_error| fmt::Error)?;
         write!(formatter, "{}", String::from_utf8_lossy(&displayed))
     }
 }
 
-impl<'l> Node<'l> for Element<'l> {
+impl<'l> Element<'l> for GenericElement<'l> {
     #[inline]
     fn append<T>(&mut self, node: T)
     where
-        T: Node<'l>,
+        T: Into<Node<'l>>,
     {
-        // self.children.push(Box::new(node));
+        self.children.push(node.into());
     }
 
     #[inline]
@@ -105,7 +103,7 @@ macro_rules! implement {
         #[$doc]
         #[derive(Clone, Debug)]
         pub struct $struct_name<'l> {
-            inner: Element<'l>,
+            inner: GenericElement<'l>,
         }
 
         impl<'l> $struct_name<'l> {
@@ -113,7 +111,7 @@ macro_rules! implement {
             #[inline]
             pub fn new() -> Self {
                 $struct_name {
-                    inner: Element::new(tag::$struct_name),
+                    inner: GenericElement::new(tag::$struct_name),
                 }
             }
         }
@@ -135,7 +133,7 @@ macro_rules! implement {
     )*);
 }
 
-impl<'l> Hash for Element<'l> {
+impl<'l> Hash for GenericElement<'l> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
         self.attributes.iter().for_each(|(key, value)| {
@@ -146,7 +144,7 @@ impl<'l> Hash for Element<'l> {
     }
 }
 
-impl<'l> super::NodeDefaultHash for Element<'l> {
+impl<'l> super::NodeDefaultHash for GenericElement<'l> {
     fn default_hash(&self, state: &mut DefaultHasher) {
         self.name.hash(state);
         self.attributes.iter().for_each(|(key, value)| {
@@ -257,12 +255,12 @@ macro_rules! implement {
     ($(
         #[$doc:meta]
         struct $struct_name:ident
-        [$($pn:ident: $($pt:tt)*),*] [$inner:ident $(,$an:ident: $at:ty)*] $body:block
+        [$($pn:ident: $($pt:path)*),*] [$inner:ident $(,$an:ident: $at:ty)*] $body:block
     )*) => ($(
         #[$doc]
         #[derive(Clone, Debug)]
         pub struct $struct_name<'l> {
-            inner: Element<'l>,
+            inner: GenericElement<'l>,
         }
 
         implement! { @itemize
@@ -271,8 +269,8 @@ macro_rules! implement {
                 #[inline]
                 pub fn new<$($pn: $($pt)*),*>($($an: $at),*) -> Self {
                     #[inline(always)]
-                    fn initialize<$($pn: $($pt)*),*>($inner: &mut Element $(, $an: $at)*) $body
-                    let mut inner = Element::new(tag::$struct_name);
+                    fn initialize<'l, $($pn: $($pt)*),*>($inner: &mut GenericElement<'l> $(, $an: $at)*) $body
+                    let mut inner = GenericElement::new(tag::$struct_name);
                     initialize(&mut inner $(, $an)*);
                     $struct_name {
                         inner,
@@ -298,29 +296,29 @@ implement! {
     }
 
     #[doc = "A [`script`](https://www.w3.org/TR/SVG/script.html#ScriptElement) element."]
-    struct Script [T: Into<String>] [inner, content: T] {
-        // inner.append(crate::node::Text::new(content));
+    struct Script [T: Into<Cow<'l, str>>] [inner, content: T] {
+        inner.append(crate::node::Node::new_text(content));
     }
 
     #[doc = "A [`style`](https://www.w3.org/TR/SVG/styling.html#StyleElement) element."]
-    struct Style [T: Into<String>] [inner, content: T] {
-        // inner.append(crate::node::Text::new(content));
+    struct Style [T: Into<Cow<'l, str>>] [inner, content: T] {
+        inner.append(crate::node::Node::new_text(content));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Element, Style};
-    use crate::node::Node;
+    use super::{GenericElement, Style};
+    use crate::node::Element;
 
     #[test]
     fn element_display() {
-        let mut element = Element::new("foo");
+        let mut element = GenericElement::new("foo");
         element.assign("x", -10);
         element.assign("y", "10px");
         element.assign("s", (12.5, 13.0));
         element.assign("c", "green");
-        element.append(Element::new("bar"));
+        element.append(GenericElement::new("bar"));
 
         assert_eq!(
             element.to_string(),
@@ -333,7 +331,7 @@ mod tests {
 
     #[test]
     fn element_display_quotes() {
-        let mut element = Element::new("foo");
+        let mut element = GenericElement::new("foo");
         element.assign("s", "'single'");
         element.assign("d", r#""double""#);
         element.assign("m", r#""mixed'"#);
@@ -341,16 +339,16 @@ mod tests {
         assert_eq!(element.to_string(), r#"<foo d='"double"' s="'single'"/>"#);
     }
 
-    // #[test]
-    // fn style_display() {
-    //     let element = Style::new("* { font-family: foo; }");
-    //
-    //     assert_eq!(
-    //         element.to_string(),
-    //         "<style>\n\
-    //          * { font-family: foo; }\n\
-    //          </style>\
-    //          "
-    //     );
-    // }
+    #[test]
+    fn style_display() {
+        let element = Style::new("* { font-family: foo; }");
+
+        assert_eq!(
+            element.to_string(),
+            "<style>\n\
+             * { font-family: foo; }\n\
+             </style>\
+             "
+        );
+    }
 }

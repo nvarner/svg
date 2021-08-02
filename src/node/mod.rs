@@ -5,35 +5,87 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::node::element::Element;
+use crate::node::element::GenericElement;
 
 mod value;
 
 pub use self::value::Value;
 use crate::events::Event;
-use crate::node::element::tag::Type;
 
 /// Attributes.
 pub type Attributes = HashMap<String, Value>;
 
 /// Child nodes.
-pub type Children<'l> = Vec<Node_<'l>>;
+pub type Children<'l> = Vec<Node<'l>>;
 
-/// Complete SVG document.
+/// A complete SVG document.
 pub struct Document<'l> {
     /// The prolog. Name for the metadata before `<svg>`, like `<?xml ... ?>` and `<!DOCTYPE ...>`.
     /// See also [the XML spec](https://www.w3.org/TR/REC-xml/#sec-prolog-dtd).
-    prolog: Vec<Node_<'l>>,
+    prolog: Vec<Node<'l>>,
     /// The `<svg>` element.
-    svg: Node_<'l>,
+    svg: GenericElement<'l>,
     /// All elements following `</svg>`.
-    misc_followers: Vec<Node_<'l>>,
+    misc_followers: Vec<Node<'l>>,
+}
+
+impl<'l> Document<'l> {
+    #[inline]
+    pub fn new() -> Document<'l> {
+        Document {
+            prolog: Vec::new(),
+            svg: GenericElement::new("svg"),
+            misc_followers: Vec::new(),
+        }
+    }
+
+    /// Append a node.
+    pub fn add<T>(mut self, node: T) -> Self
+    where
+        T: Into<Node<'l>>,
+    {
+        self.svg.append(node.into());
+        self
+    }
+
+    /// Assign an attribute.
+    #[inline]
+    pub fn set<T, U>(mut self, name: T, value: U) -> Self
+    where
+        T: Into<String>,
+        U: Into<Value>,
+    {
+        self.svg.assign(name, value);
+        self
+    }
+
+    pub fn to_events(&'l self) -> Vec<Event<'l>> {
+        let prolog_events = self.prolog.iter().flat_map(|node| node.to_events());
+        let svg_events = self.svg.to_events();
+        let misc_follower_events = self.misc_followers.iter().flat_map(|node| node.to_events());
+
+        prolog_events
+            .chain(svg_events)
+            .chain(misc_follower_events)
+            .collect()
+    }
+}
+
+impl<'l> From<GenericElement<'l>> for Document<'l> {
+    #[inline]
+    fn from(element: GenericElement<'l>) -> Self {
+        Document {
+            prolog: Vec::new(),
+            svg: element,
+            misc_followers: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Hash)]
-pub enum Node_<'l> {
+pub enum Node<'l> {
     /// An element.
-    Element(Element<'l>),
+    Element(GenericElement<'l>),
     /// A text node.
     Text(Cow<'l, str>),
     /// A padded comment (eg. `<!-- foo -->`).
@@ -46,64 +98,70 @@ pub enum Node_<'l> {
     Instruction(Cow<'l, str>),
 }
 
-impl<'l> Node_<'l> {
+impl<'l> Node<'l> {
     pub fn new_element<T: Into<Cow<'l, str>>>(name: T) -> Self {
-        Node_::Element(Element::new(name))
+        Node::Element(GenericElement::new(name))
     }
 
     /// Creates a text node.
     #[inline]
     pub fn new_text<T: Into<Cow<'l, str>>>(content: T) -> Self {
-        Node_::Text(content.into())
+        Node::Text(content.into())
     }
 
     /// Create a comment node. The content will be padded (eg. `new_comment("foo")` would be
     /// `<!-- foo -->` in XML).
     #[inline]
     pub fn new_comment<T: Into<Cow<'l, str>>>(content: T) -> Self {
-        Node_::Comment(content.into())
+        Node::Comment(content.into())
     }
 
     /// Create a comment node. The content will be unpadded (eg. `new_comment("foo")` would be
     /// `<!--foo-->` in XML).
     #[inline]
     pub fn new_unpadded_comment<T: Into<Cow<'l, str>>>(content: T) -> Self {
-        Node_::UnpaddedComment(content.into())
+        Node::UnpaddedComment(content.into())
     }
 
     /// Creates a declaration node.
     #[inline]
     pub fn new_declaration<T: Into<Cow<'l, str>>>(content: T) -> Self {
-        Node_::Declaration(content.into())
+        Node::Declaration(content.into())
     }
 
     /// Creates an instruction node.
     #[inline]
     pub fn new_instruction<T: Into<Cow<'l, str>>>(content: T) -> Self {
-        Node_::Instruction(content.into())
+        Node::Instruction(content.into())
     }
 
     pub fn to_events(&'l self) -> Vec<Event<'l>> {
         match self {
-            Node_::Element(element) => element.to_events(),
-            Node_::Text(content) => vec![Event::Text(content)],
-            Node_::Comment(content) => vec![Event::Comment(content)],
-            Node_::UnpaddedComment(content) => vec![Event::UnpaddedComment(content)],
-            Node_::Declaration(content) => vec![Event::Declaration(content)],
-            Node_::Instruction(content) => vec![Event::Instruction(content)],
+            Node::Element(element) => element.to_events(),
+            Node::Text(content) => vec![Event::Text(content)],
+            Node::Comment(content) => vec![Event::Comment(content)],
+            Node::UnpaddedComment(content) => vec![Event::UnpaddedComment(content)],
+            Node::Declaration(content) => vec![Event::Declaration(content)],
+            Node::Instruction(content) => vec![Event::Instruction(content)],
         }
     }
 }
 
+impl<'l> From<GenericElement<'l>> for Node<'l> {
+    fn from(element: GenericElement<'l>) -> Self {
+        Node::Element(element)
+    }
+}
+
 /// A node.
-pub trait Node<'l>:
+pub trait Element<'l>:
     'l + fmt::Debug + fmt::Display + NodeClone<'l> + NodeDefaultHash + Send + Sync
 {
     /// Append a child node.
     fn append<T>(&mut self, _: T)
     where
         Self: Sized,
-        T: Node<'l>;
+        T: Into<Node<'l>>;
 
     /// Assign an attribute.
     fn assign<T, U>(&mut self, _: T, _: U)
@@ -115,7 +173,7 @@ pub trait Node<'l>:
 
 #[doc(hidden)]
 pub trait NodeClone<'l> {
-    fn clone(&self) -> Box<dyn Node<'l>>;
+    fn clone(&self) -> Box<dyn Element<'l>>;
 }
 
 #[doc(hidden)]
@@ -125,22 +183,22 @@ pub trait NodeDefaultHash {
 
 impl<'l, T> NodeClone<'l> for T
 where
-    T: Node<'l> + Clone,
+    T: Element<'l> + Clone,
 {
     #[inline]
-    fn clone(&self) -> Box<dyn Node<'l>> {
+    fn clone(&self) -> Box<dyn Element<'l>> {
         Box::new(Clone::clone(self))
     }
 }
 
-impl<'l> NodeDefaultHash for Box<dyn Node<'l>> {
+impl<'l> NodeDefaultHash for Box<dyn Element<'l>> {
     #[inline]
     fn default_hash(&self, state: &mut DefaultHasher) {
         NodeDefaultHash::default_hash(&**self, state)
     }
 }
 
-impl<'l> Clone for Box<dyn Node<'l>> {
+impl<'l> Clone for Box<dyn Element<'l>> {
     #[inline]
     fn clone(&self) -> Self {
         NodeClone::clone(&**self)
@@ -153,9 +211,9 @@ macro_rules! node(
             /// Append a node.
             pub fn add<T>(mut self, node: T) -> Self
             where
-                T: crate::node::Node<'l>,
+                T: std::convert::Into<crate::node::Node<'l>>,
             {
-                crate::node::Node::append(&mut self, node);
+                crate::node::Element::append(&mut self, node.into());
                 self
             }
 
@@ -166,22 +224,22 @@ macro_rules! node(
                 T: Into<String>,
                 U: Into<crate::node::Value>,
             {
-                crate::node::Node::assign(&mut self, name, value);
+                crate::node::Element::assign(&mut self, name, value);
                 self
             }
 
             /// Return the inner element.
             #[inline]
-            pub fn get_inner(&'l self) -> &'l Element {
+            pub fn get_inner(&'l self) -> &'l GenericElement {
                 &self.inner
             }
         }
 
-        impl<'l> crate::node::Node<'l> for $struct_name<'l> {
+        impl<'l> crate::node::Element<'l> for $struct_name<'l> {
             #[inline]
             fn append<T>(&mut self, node: T)
             where
-                T: crate::node::Node<'l>,
+                T: std::convert::Into<crate::node::Node<'l>>,
             {
                 self.$field_name.append(node);
             }
@@ -203,10 +261,24 @@ macro_rules! node(
             }
         }
 
-        impl<'l> Into<Element<'l>> for $struct_name<'l> {
+        impl<'l> From<$struct_name<'l>> for GenericElement<'l> {
             #[inline]
-            fn into(self) -> Element<'l> {
-                self.inner
+            fn from(element: $struct_name<'l>) -> GenericElement<'l> {
+                element.inner
+            }
+        }
+
+        impl<'l> From<$struct_name<'l>> for Node<'l> {
+            #[inline]
+            fn from(element: $struct_name<'l>) -> Node<'l> {
+                Node::Element(element.into())
+            }
+        }
+
+        impl<'l> From<$struct_name<'l>> for crate::Document<'l> {
+            #[inline]
+            fn from(element: $struct_name<'l>) -> crate::Document<'l> {
+                element.into()
             }
         }
     );
