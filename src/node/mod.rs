@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fmt;
+use std::iter::once;
 
 use crate::node::element::GenericElement;
 
@@ -59,15 +60,12 @@ impl<'l> Document<'l> {
         self
     }
 
-    pub fn to_events(&'l self) -> Vec<Event<'l>> {
+    pub fn to_events(&'l self) -> impl Iterator<Item = Event<'l>> {
         let prolog_events = self.prolog.iter().flat_map(|node| node.to_events());
         let svg_events = self.svg.to_events();
         let misc_follower_events = self.misc_followers.iter().flat_map(|node| node.to_events());
 
-        prolog_events
-            .chain(svg_events)
-            .chain(misc_follower_events)
-            .collect()
+        prolog_events.chain(svg_events).chain(misc_follower_events)
     }
 }
 
@@ -135,14 +133,14 @@ impl<'l> Node<'l> {
         Node::Instruction(content.into())
     }
 
-    pub fn to_events(&'l self) -> Vec<Event<'l>> {
+    pub fn to_events(&'l self) -> Box<dyn Iterator<Item = Event<'l>> + 'l> {
         match self {
             Node::Element(element) => element.to_events(),
-            Node::Text(content) => vec![Event::Text(content)],
-            Node::Comment(content) => vec![Event::Comment(content)],
-            Node::UnpaddedComment(content) => vec![Event::UnpaddedComment(content)],
-            Node::Declaration(content) => vec![Event::Declaration(content)],
-            Node::Instruction(content) => vec![Event::Instruction(content)],
+            Node::Text(content) => Box::new(once(Event::Text(content))),
+            Node::Comment(content) => Box::new(once(Event::Comment(content))),
+            Node::UnpaddedComment(content) => Box::new(once(Event::UnpaddedComment(content))),
+            Node::Declaration(content) => Box::new(once(Event::Declaration(content))),
+            Node::Instruction(content) => Box::new(once(Event::Instruction(content))),
         }
     }
 }

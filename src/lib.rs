@@ -110,8 +110,7 @@ where
     let mut composer = Composer::new(&mut target);
     document
         .to_events()
-        .iter()
-        .try_for_each(|event| composer.write_event(event))
+        .try_for_each(|event| composer.write_event(&event))
 }
 
 #[cfg(test)]

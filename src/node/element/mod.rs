@@ -53,16 +53,21 @@ impl<'l> GenericElement<'l> {
         &self.children
     }
 
-    pub fn to_events(&'l self) -> Vec<Event<'l>> {
+    pub fn to_events(&'l self) -> Box<dyn Iterator<Item = Event<'l>> + 'l> {
         if self.children.is_empty() {
-            vec![Event::Tag(&self.name, Type::Empty, self.attributes.clone())]
+            Box::new(once(Event::Tag(
+                &self.name,
+                Type::Empty,
+                self.attributes.clone(),
+            )))
         } else {
             let child_events = self.children.iter().flat_map(|child| child.to_events());
 
-            once(Event::Tag(&self.name, Type::Start, self.attributes.clone()))
-                .chain(child_events)
-                .chain(once(Event::Tag(&self.name, Type::End, HashMap::new())))
-                .collect()
+            Box::new(
+                once(Event::Tag(&self.name, Type::Start, self.attributes.clone()))
+                    .chain(child_events)
+                    .chain(once(Event::Tag(&self.name, Type::End, HashMap::new()))),
+            )
         }
     }
 }
@@ -72,8 +77,7 @@ impl<'l> fmt::Display for GenericElement<'l> {
         let mut displayed = Vec::new();
         let mut composer = Composer::new(&mut displayed);
         self.to_events()
-            .iter()
-            .try_for_each(|event| composer.write_event(event))
+            .try_for_each(|event| composer.write_event(&event))
             .map_err(|_error| fmt::Error)?;
         write!(formatter, "{}", String::from_utf8_lossy(&displayed))
     }
