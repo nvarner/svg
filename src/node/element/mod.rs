@@ -14,6 +14,7 @@ use crate::events::Event;
 use crate::node::element::tag::Type;
 use crate::node::{Attributes, Children, Element, Node, Value};
 use crate::Composer;
+use std::convert::TryFrom;
 
 pub mod path;
 pub mod tag;
@@ -68,6 +69,17 @@ impl<'l> GenericElement<'l> {
                     .chain(child_events)
                     .chain(once(Event::Tag(&self.name, Type::End, HashMap::new()))),
             )
+        }
+    }
+}
+
+impl<'l> TryFrom<Node<'l>> for GenericElement<'l> {
+    type Error = Node<'l>;
+
+    fn try_from(node: Node<'l>) -> Result<Self, Self::Error> {
+        match node {
+            Node::Element(element) => Ok(element),
+            _ => Err(node),
         }
     }
 }

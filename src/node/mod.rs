@@ -259,21 +259,35 @@ macro_rules! node(
             }
         }
 
-        impl<'l> From<$struct_name<'l>> for GenericElement<'l> {
+        impl<'l> ::std::convert::From<$struct_name<'l>> for GenericElement<'l> {
             #[inline]
             fn from(element: $struct_name<'l>) -> GenericElement<'l> {
                 element.inner
             }
         }
 
-        impl<'l> From<$struct_name<'l>> for Node<'l> {
+        impl<'l> ::std::convert::TryFrom<GenericElement<'l>> for $struct_name<'l> {
+            type Error = GenericElement<'l>;
+
+            fn try_from(generic_element: GenericElement<'l>) -> Result<Self, Self::Error> {
+                if generic_element.get_name() == crate::node::element::tag::$struct_name {
+                    Ok($struct_name {
+                        inner: generic_element,
+                    })
+                } else {
+                    Err(generic_element)
+                }
+            }
+        }
+
+        impl<'l> ::std::convert::From<$struct_name<'l>> for Node<'l> {
             #[inline]
             fn from(element: $struct_name<'l>) -> Node<'l> {
                 Node::Element(element.into())
             }
         }
 
-        impl<'l> From<$struct_name<'l>> for crate::Document<'l> {
+        impl<'l> ::std::convert::From<$struct_name<'l>> for crate::Document<'l> {
             #[inline]
             fn from(element: $struct_name<'l>) -> crate::Document<'l> {
                 element.into()
