@@ -28,6 +28,7 @@ pub struct GenericElement<'l> {
 }
 
 impl<'l> GenericElement<'l> {
+    #[inline]
     pub fn new<T>(name: T) -> Self
     where
         T: Into<Cow<'l, str>>,
@@ -36,6 +37,15 @@ impl<'l> GenericElement<'l> {
             name: name.into(),
             attributes: Attributes::new(),
             children: Children::new(),
+        }
+    }
+
+    #[inline]
+    pub fn new_from(name: Cow<'l, str>, attributes: Attributes, children: Children<'l>) -> Self {
+        Self {
+            name,
+            attributes,
+            children,
         }
     }
 

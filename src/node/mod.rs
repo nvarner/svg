@@ -6,12 +6,16 @@ use std::collections::HashMap;
 use std::fmt;
 use std::iter::once;
 
-use crate::node::element::GenericElement;
+pub use parser::error::Error;
 
-mod value;
+use crate::events::Event;
+use crate::node::element::GenericElement;
+use crate::node::parser::Parser;
 
 pub use self::value::Value;
-use crate::events::Event;
+
+mod parser;
+mod value;
 
 /// Attributes.
 pub type Attributes = HashMap<String, Value>;
@@ -38,6 +42,10 @@ impl<'l> Document<'l> {
             svg: GenericElement::new("svg"),
             misc_followers: Vec::new(),
         }
+    }
+
+    pub fn from_events<T: Iterator<Item = Event<'l>>>(events: T) -> Result<Document<'l>> {
+        Parser::new(events).process()
     }
 
     /// Append a node.
@@ -79,6 +87,8 @@ impl<'l> From<GenericElement<'l>> for Document<'l> {
         }
     }
 }
+
+pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Hash)]
 pub enum Node<'l> {
@@ -269,13 +279,26 @@ macro_rules! node(
         impl<'l> ::std::convert::TryFrom<GenericElement<'l>> for $struct_name<'l> {
             type Error = GenericElement<'l>;
 
-            fn try_from(generic_element: GenericElement<'l>) -> Result<Self, Self::Error> {
+            fn try_from(generic_element: GenericElement<'l>) -> ::std::result::Result<Self, Self::Error> {
                 if generic_element.get_name() == crate::node::element::tag::$struct_name {
                     Ok($struct_name {
                         inner: generic_element,
                     })
                 } else {
                     Err(generic_element)
+                }
+            }
+        }
+
+        impl<'l> ::std::convert::TryFrom<Node<'l>> for $struct_name<'l> {
+            type Error = Node<'l>;
+
+            fn try_from(node: Node<'l>) -> ::std::result::Result<Self, Self::Error> {
+                match node {
+                    Node::Element(element) => {
+                        ::std::convert::TryInto::try_into(element).map_err(|element| Node::Element(element))
+                    }
+                    _ => Err(node),
                 }
             }
         }
@@ -297,3 +320,133 @@ macro_rules! node(
 );
 
 pub mod element;
+
+#[cfg(test)]
+mod tests {
+    use crate::events::Event;
+    use crate::node::element::tag::Type;
+    use crate::node::element::{Path, SVG};
+    use crate::node::Attributes;
+    use crate::{Composer, Document, Parser};
+
+    use std::collections::HashMap;
+    use std::convert::TryInto;
+    use std::fs;
+
+    #[test]
+    fn parse_basic_document() {
+        let events = vec![
+            Event::Tag("svg", Type::Start, HashMap::new()),
+            Event::Tag("svg", Type::End, HashMap::new()),
+        ];
+
+        let document = Document::from_events(events.into_iter()).unwrap();
+
+        let svg: SVG = document.svg.try_into().unwrap();
+        assert!(svg.get_inner().get_attributes().is_empty());
+    }
+
+    #[test]
+    fn parse_empty_tag_document() {
+        let events = vec![Event::Tag("svg", Type::Empty, HashMap::new())];
+
+        let document = Document::from_events(events.into_iter()).unwrap();
+
+        let svg: SVG = document.svg.try_into().unwrap();
+        assert!(svg.get_inner().get_attributes().is_empty());
+    }
+
+    #[test]
+    fn reject_no_tags() {
+        let events = vec![];
+        assert!(Document::from_events(events.into_iter()).is_err());
+    }
+
+    #[test]
+    fn parse_larger_document() {
+        // Based on tests/fixtures/benton.svg
+        let mut svg_attributes: Attributes = HashMap::new();
+        svg_attributes.insert("version".into(), "1.1".into());
+        svg_attributes.insert("id".into(), "Layer_1".into());
+        svg_attributes.insert("xmlns".into(), "http://www.w3.org/2000/svg".into());
+        svg_attributes.insert("xmlns:xlink".into(), "http://www.w3.org/1999/xlink".into());
+        svg_attributes.insert("x".into(), "0px".into());
+        svg_attributes.insert("y".into(), "0px".into());
+        svg_attributes.insert("viewBox".into(), "0 0 800 800".into());
+        svg_attributes.insert("enable-background".into(), "new 0 0 800 800".into());
+        svg_attributes.insert("xml:space".into(), "preserve".into());
+
+        let mut path1_attributes: Attributes = HashMap::new();
+        path1_attributes.insert("d".into(), r#"M249,752c67,0,129-63,129-143c0-107-87-191-199-191c-81,0-149,60-149,125c0,42,29,73,62,73c22,0,44-17,44-40
+	c0-25-19-43-41-43c-11,0-26,5-31,11c-17,16-26,3-27-5c-2-45,40-93,123-93c90,0,192,91,192,177c0,81-52,123-99,121c-11-2-21-9-5-24
+	c7-4,12-20,12-30c0-22-20-40-45-40s-43,21-43,43C172,724,205,752,249,752z"#.into());
+
+        let mut path2_attributes: Attributes = HashMap::new();
+        path2_attributes.insert("d".into(), r#"M544,752c44,0,77-28,77-59c0-22-18-43-43-43s-45,18-45,40c0,10,5,26,12,30c16,15,7,22-5,24c-47,2-99-40-99-121
+	c0-86,102-177,192-177c83,0,124,48,123,93c-1,8-11,21-27,5c-5-6-20-11-31-11c-22,0-41,18-41,43c0,23,22,40,44,40c33,0,62-31,62-73
+	c0-65-68-125-149-125c-112,0-199,84-199,191C415,689,477,752,544,752z"#.into());
+
+        let mut path3_attributes: Attributes = HashMap::new();
+        path3_attributes.insert("d".into(), r#"M249,50c-44,0-77,28-77,59c0,22,18,43,43,43s45-18,45-40c0-10-5-26-12-30c-16-15-6-22,5-24c47-2,99,40,99,121
+	c0,86-102,177-192,177c-83,0-125-48-123-93c1-8,10-21,27-5c5,6,20,11,31,11c22,0,41-18,41-43c0-23-22-40-44-40c-33,0-62,31-62,73
+	c0,65,68,125,149,125c112,0,199-84,199-191C378,113,316,50,249,50z"#.into());
+
+        let mut path4_attributes: Attributes = HashMap::new();
+        path4_attributes.insert("d".into(), r#"M544,50c-67,0-129,63-129,143c0,107,87,191,199,191c81,0,149-60,149-125c0-42-29-73-62-73c-22,0-44,17-44,40
+	c0,25,19,43,41,43c11,0,26-5,31-11c16-16,26-3,27,5c1,45-40,93-123,93c-90,0-192-91-192-177c0-81,52-123,99-121c11,2,21,9,5,24
+	c-7,4-12,20-12,30c0,22,20,40,45,40s43-21,43-43C621,78,588,50,544,50z"#.into());
+
+        let events = vec![
+            Event::Instruction(r#"xml version="1.0" encoding="utf-8""#),
+            Event::Comment("Generator: Adobe Illustrator 18.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0) "),
+            Event::Declaration(r#"DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd""#),
+            Event::Tag("svg", Type::Start, svg_attributes.clone()),
+            Event::Tag("path", Type::Empty, path1_attributes.clone()),
+            Event::Tag("path", Type::Empty, path2_attributes.clone()),
+            Event::Tag("path", Type::Empty, path3_attributes.clone()),
+            Event::Tag("path", Type::Empty, path4_attributes.clone()),
+            Event::Tag("svg", Type::End, HashMap::new()),
+        ];
+
+        let document = Document::from_events(events.into_iter()).unwrap();
+
+        let svg: SVG = document.svg.try_into().unwrap();
+        let svg_inner = svg.get_inner();
+        assert_eq!(&svg_attributes, svg_inner.get_attributes());
+
+        let svg_children = svg_inner.get_children();
+        assert_eq!(4, svg_children.len());
+
+        let path1: Path = svg_children[0].clone().try_into().unwrap();
+        assert_eq!(&path1_attributes, path1.get_inner().get_attributes());
+
+        let path2: Path = svg_children[1].clone().try_into().unwrap();
+        assert_eq!(&path2_attributes, path2.get_inner().get_attributes());
+
+        let path3: Path = svg_children[2].clone().try_into().unwrap();
+        assert_eq!(&path3_attributes, path3.get_inner().get_attributes());
+
+        let path4: Path = svg_children[3].clone().try_into().unwrap();
+        assert_eq!(&path4_attributes, path4.get_inner().get_attributes());
+    }
+
+    #[test]
+    fn identity_iterator() {
+        let mut destination = Vec::new();
+        let mut composer = Composer::new(&mut destination);
+
+        // Prevent line ending issues when comparing
+        let contents = fs::read_to_string("tests/fixtures/benton_composer_formatted.svg")
+            .unwrap()
+            .replace("\r\n", "\n");
+        let events = Parser::new(&contents).map(|event| event.unwrap());
+        let document = Document::from_events(events).unwrap();
+        document
+            .to_events()
+            .try_for_each(|event| composer.write_event(&event))
+            .unwrap();
+
+        let composed = String::from_utf8(destination).unwrap();
+        assert_eq!(contents, composed);
+    }
+}
