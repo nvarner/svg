@@ -94,19 +94,19 @@ pub fn read<'l>(content: &'l str) -> io::Result<Parser<'l>> {
 pub fn save<'l, T, U>(path: T, document: U) -> io::Result<()>
 where
     T: AsRef<Path>,
-    U: Into<&'l Document<'l>>,
+    U: AsRef<Document<'l>>,
 {
     let file = File::create(path)?;
-    write(file, document)
+    write(file, &document)
 }
 
 /// Write a document.
 pub fn write<'l, T, U>(mut target: T, document: U) -> io::Result<()>
 where
     T: Write,
-    U: Into<&'l Document<'l>>,
+    U: AsRef<Document<'l>>,
 {
-    let document: &Document = document.into();
+    let document: &Document = document.as_ref();
     let mut composer = Composer::new(&mut target);
     document
         .to_events()

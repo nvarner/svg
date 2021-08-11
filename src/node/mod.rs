@@ -108,6 +108,12 @@ impl<'l> From<GenericElement<'l>> for Document<'l> {
     }
 }
 
+impl<'l> AsRef<Document<'l>> for Document<'l> {
+    fn as_ref(&self) -> &Document<'l> {
+        self
+    }
+}
+
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Hash)]
