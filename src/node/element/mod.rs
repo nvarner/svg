@@ -55,13 +55,28 @@ impl<'l> GenericElement<'l> {
     }
 
     #[inline]
+    pub fn set_name<T: Into<Cow<'l, str>>>(&mut self, name: T) {
+        self.name = name.into();
+    }
+
+    #[inline]
     pub fn get_attributes(&self) -> &Attributes {
         &self.attributes
     }
 
     #[inline]
-    pub fn get_children(&self) -> &'l Children {
+    pub fn get_mut_attributes(&mut self) -> &mut Attributes {
+        &mut self.attributes
+    }
+
+    #[inline]
+    pub fn get_children(&self) -> &Children {
         &self.children
+    }
+
+    #[inline]
+    pub fn get_mut_children(&mut self) -> &mut Children<'l> {
+        &mut self.children
     }
 
     pub fn to_events(&'l self) -> Box<dyn Iterator<Item = Event<'l>> + 'l> {

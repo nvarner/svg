@@ -8,6 +8,7 @@ use std::iter::once;
 
 pub use parser::error::Error;
 
+use crate::events;
 use crate::events::Event;
 use crate::node::element::GenericElement;
 use crate::node::parser::Parser;
@@ -44,6 +45,13 @@ impl<'l> Document<'l> {
         }
     }
 
+    pub fn from_event_parser(parser: events::parser::Parser<'l>) -> Result<Document<'l>> {
+        let events = parser
+            .collect::<events::parser::Result<Vec<_>>>()
+            .map_err(|err| Error::new(err.to_string()))?;
+        Self::from_events(events.into_iter())
+    }
+
     pub fn from_events<T: Iterator<Item = Event<'l>>>(events: T) -> Result<Document<'l>> {
         Parser::new(events).process()
     }
@@ -66,6 +74,18 @@ impl<'l> Document<'l> {
     {
         self.svg.assign(name, value);
         self
+    }
+
+    /// Get `<svg>` node.
+    #[inline]
+    pub fn get_svg(&self) -> &GenericElement {
+        &self.svg
+    }
+
+    /// Get mutable `<svg>` node.
+    #[inline]
+    pub fn get_mut_svg(&mut self) -> &mut GenericElement<'l> {
+        &mut self.svg
     }
 
     pub fn to_events(&'l self) -> impl Iterator<Item = Event<'l>> {
