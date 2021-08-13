@@ -339,7 +339,8 @@ macro_rules! node(
         impl<'l> ::std::convert::From<$struct_name<'l>> for crate::Document<'l> {
             #[inline]
             fn from(element: $struct_name<'l>) -> crate::Document<'l> {
-                element.into()
+                let generic: GenericElement = element.into();
+                generic.into()
             }
         }
     );
